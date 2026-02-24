@@ -7,6 +7,7 @@ pub struct Card {
 pub struct Column {
     pub name: String,
     pub cards: Vec<Card>,
+    pub selected: usize,
 }
 
 pub struct App {
@@ -23,6 +24,7 @@ impl App {
             columns: vec![
                 Column {
                     name: "Todo".into(),
+                    selected: 0,
                     cards: vec![
                         Card { title: "Write TUI".into() },
                         Card { title: "Drink coffee".into() },
@@ -30,12 +32,14 @@ impl App {
                 },
                 Column {
                     name: "Doing".into(),
+                    selected: 0,
                     cards: vec![
                         Card { title: "Learning Ratatui".into() },
                     ],
                 },
                 Column {
                     name: "Done".into(),
+                    selected: 0,
                     cards: vec![
                         Card { title: "Create project".into() },
                     ],

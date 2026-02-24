@@ -38,8 +38,36 @@ fn run(
 
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                if key.code == KeyCode::Char('q') {
-                    app.quit = true;
+                match key.code {
+                    KeyCode::Char('q') => app.quit = true,
+
+                    KeyCode::Left => {
+                        if app.selected_column > 0 {
+                            app.selected_column -= 1;
+                        }
+                    }
+
+                    KeyCode::Right => {
+                        if app.selected_column + 1 < app.columns.len() {
+                            app.selected_column += 1;
+                        }
+                    }
+
+                    KeyCode::Up => {
+                        let col = &mut app.columns[app.selected_column];
+                        if col.selected > 0 {
+                            col.selected -= 1;
+                        }
+                    }
+
+                    KeyCode::Down => {
+                        let col = &mut app.columns[app.selected_column];
+                        if col.selected + 1 < col.cards.len() {
+                            col.selected += 1;
+                        }
+                    }
+
+                    _ => {}
                 }
             }
         }

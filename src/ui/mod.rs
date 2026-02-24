@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
-    widgets::{Block, Borders, List, ListItem},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, List, ListItem, ListState},
     Frame,
 };
 
@@ -24,6 +24,11 @@ pub fn draw(f: &mut Frame, app: &App) {
             .map(|c| ListItem::new(c.title.clone()))
             .collect();
 
+        let mut state = ListState::default();
+        if i == app.selected_column {
+            state.select(Some(column.selected));
+        }
+
         let border_style = if i == app.selected_column {
             Style::default().fg(Color::Cyan)
         } else {
@@ -36,8 +41,12 @@ pub fn draw(f: &mut Frame, app: &App) {
                     .title(column.name.clone())
                     .borders(Borders::ALL)
                     .border_style(border_style),
+            )
+            .highlight_style(
+                Style::default()
+                    .add_modifier(Modifier::REVERSED),
             );
 
-        f.render_widget(list, chunks[i]);
+        f.render_stateful_widget(list, chunks[i], &mut state);
     }
 }
