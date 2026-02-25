@@ -1,7 +1,7 @@
 mod app;
 mod ui;
 
-use std::io;
+use std::{env, io};
 use crate::app::{App, InputMode, PopupField};
 
 use crossterm::{
@@ -18,7 +18,8 @@ fn main() -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::load();
+    let path = env::args().nth(1).unwrap_or_else(|| App::DEFAULT_FILE.to_string());
+    let mut app = App::load(&path);
     let res = run(&mut terminal, &mut app);
 
     // Always save and restore terminal, even on error

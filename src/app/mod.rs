@@ -84,11 +84,12 @@ pub struct App {
     pub editing_desc: bool,
 
     pub show_help: bool,
+    pub save_path: String,
     pub status_message: Option<String>,
 }
 
 impl App {
-    const SAVE_FILE: &'static str = "board.json";
+    pub const DEFAULT_FILE: &'static str = "board.json";
 
     pub fn new() -> Self {
         Self {
@@ -104,6 +105,7 @@ impl App {
             tags_cursor: 0,
             editing_desc: false,
             show_help: false,
+            save_path: Self::DEFAULT_FILE.to_string(),
             status_message: None,
             columns: vec![
                 Column {
@@ -144,9 +146,9 @@ impl App {
         }
     }
 
-    pub fn load() -> Self {
-        if Path::new(Self::SAVE_FILE).exists() {
-            let data = fs::read_to_string(Self::SAVE_FILE).unwrap_or_default();
+    pub fn load(path: &str) -> Self {
+        if Path::new(path).exists() {
+            let data = fs::read_to_string(path).unwrap_or_default();
             if let Ok(snap) = serde_json::from_str::<BoardSnapshot>(&data) {
                 let mut app = Self::new();
                 app.columns = snap.columns;
@@ -156,17 +158,20 @@ impl App {
                 for col in &mut app.columns {
                     col.clamp_selected();
                 }
+                app.save_path = path.to_string();
                 return app;
             }
         }
-        Self::new()
+        let mut app = Self::new();
+        app.save_path = path.to_string();
+        app
     }
 
     pub fn save(&mut self) {
         match serde_json::to_string_pretty(&self.snapshot()) {
             Ok(json) => {
-                if fs::write(Self::SAVE_FILE, json).is_err() {
-                    self.status_message = Some("⚠ Could not save board.json".into());
+                if fs::write(&self.save_path, json).is_err() {
+                    self.status_message = Some(format!("⚠ Could not save {}", self.save_path));
                 }
             }
             Err(_) => self.status_message = Some("⚠ Serialisation error".into()),
