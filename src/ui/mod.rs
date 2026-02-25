@@ -1,4 +1,5 @@
 use crate::app::{App, InputMode, PopupField};
+use crate::config::Config;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -6,49 +7,42 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
-// ── Colour palette ────────────────────────────────────────────────────────────
-const ACCENT: Color = Color::Cyan;
-const SELECTED_BG: Color = Color::Cyan;
-const SELECTED_FG: Color = Color::Black;
-const SUBTLE: Color = Color::DarkGray;
-const WARNING: Color = Color::Yellow;
-const TAG_FG: Color = Color::Magenta;
 
-pub fn draw(f: &mut Frame, app: &App) {
+pub fn draw(f: &mut Frame, app: &App, cfg: &Config) {
     let area = f.area();
     // Reserve 1 row at the bottom for the status/hint bar
     let main_and_bar = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(area);
-    draw_columns(f, app, main_and_bar[0]);
-    draw_statusbar(f, app, main_and_bar[1]);
+    draw_columns(f, app, main_and_bar[0], cfg);
+    draw_statusbar(f, app, main_and_bar[1], cfg);
     // Overlays (rendered last so they appear on top)
     match &app.input_mode {
         InputMode::AddingCard | InputMode::EditingCard { .. } => {
-            draw_input_popup(f, app, area);
+            draw_input_popup(f, app, area, cfg);
         }
         InputMode::ViewingCard { col, card } => {
-            draw_card_detail(f, app, area, *col, *card);
+            draw_card_detail(f, app, area, *col, *card, cfg);
         }
         InputMode::AddingColumn => {
-            draw_column_name_popup(f, app, area, false);
+            draw_column_name_popup(f, app, area, false, cfg);
         }
         InputMode::RenamingColumn { .. } => {
-            draw_column_name_popup(f, app, area, true);
+            draw_column_name_popup(f, app, area, true, cfg);
         }
         InputMode::DeletingColumn { col } => {
-            draw_column_delete_popup(f, app, area, *col);
+            draw_column_delete_popup(f, app, area, *col, cfg);
         }
         InputMode::Normal => {}
     }
     if app.show_help {
-        draw_help(f, area);
+        draw_help(f, area, cfg);
     }
 }
 
 // ── Board columns ─────────────────────────────────────────────────────────────
-fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
+fn draw_columns(f: &mut Frame, app: &App, area: Rect, cfg: &Config) {
     let n = app.columns.len() as u16;
     let constraints: Vec<Constraint> = (0..n)
         .map(|_| Constraint::Ratio(1, n as u32))
@@ -60,9 +54,9 @@ fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
     for (i, col) in app.columns.iter().enumerate() {
         let is_active = i == app.selected_column;
         let border_style = if is_active {
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+            Style::default().fg(cfg.colors.accent).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(SUBTLE)
+            Style::default().fg(cfg.colors.subtle)
         };
         let title_str = format!(" {} ({}) ", col.name, col.cards.len());
         let items: Vec<ListItem> = col
@@ -73,8 +67,8 @@ fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
                 let selected = is_active && j == col.selected;
                 let base_style = if selected {
                     Style::default()
-                        .fg(SELECTED_FG)
-                        .bg(SELECTED_BG)
+                        .fg(cfg.colors.selected_fg)
+                        .bg(cfg.colors.selected_bg)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
@@ -91,9 +85,9 @@ fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
                     ListItem::new(title_line)
                 } else {
                     let tag_style = if selected {
-                        Style::default().fg(SELECTED_FG).bg(SELECTED_BG)
+                        Style::default().fg(cfg.colors.selected_fg).bg(cfg.colors.selected_bg)
                     } else {
-                        Style::default().fg(TAG_FG)
+                        Style::default().fg(cfg.colors.tag)
                     };
                     let tag_span = Span::styled(
                         format!(" [{}]", c.tags.join(", ")),
@@ -116,9 +110,9 @@ fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
 }
 
 // ── Status / hint bar ─────────────────────────────────────────────────────────
-fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
+fn draw_statusbar(f: &mut Frame, app: &App, area: Rect, cfg: &Config) {
     let text = if let Some(msg) = &app.status_message {
-        Span::styled(msg.clone(), Style::default().fg(WARNING))
+        Span::styled(msg.clone(), Style::default().fg(cfg.colors.warning))
     } else {
         let hint = match &app.input_mode {
             InputMode::Normal => {
@@ -135,14 +129,14 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
             }
             InputMode::ViewingCard { .. } => "  Esc: back",
         };
-        Span::styled(hint, Style::default().fg(SUBTLE))
+        Span::styled(hint, Style::default().fg(cfg.colors.subtle))
     };
     let para = Paragraph::new(Line::from(text));
     f.render_widget(para, area);
 }
 
 // ── Add / Edit popup ──────────────────────────────────────────────────────────
-fn draw_input_popup(f: &mut Frame, app: &App, area: Rect) {
+fn draw_input_popup(f: &mut Frame, app: &App, area: Rect, cfg: &Config) {
     let popup_area = centered_rect(60, 50, area);
     let title = match &app.input_mode {
         InputMode::AddingCard => " New Card ",
@@ -152,8 +146,8 @@ fn draw_input_popup(f: &mut Frame, app: &App, area: Rect) {
     let outer_block = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .style(Style::default().bg(Color::Black))
-        .border_style(Style::default().fg(ACCENT));
+        .style(Style::default().bg(cfg.colors.background))
+        .border_style(Style::default().fg(cfg.colors.accent));
     let inner_area = outer_block.inner(popup_area);
     f.render_widget(Clear, popup_area);
     f.render_widget(outer_block, popup_area);
@@ -171,9 +165,9 @@ fn draw_input_popup(f: &mut Frame, app: &App, area: Rect) {
     // ── Title field ───────────────────────────────────────────────────────────
     let title_focused = app.focused_field == PopupField::Title;
     let title_style = if title_focused {
-        Style::default().fg(ACCENT)
+        Style::default().fg(cfg.colors.accent)
     } else {
-        Style::default().fg(SUBTLE)
+        Style::default().fg(cfg.colors.subtle)
     };
     let title_field = Paragraph::new(app.input_buffer.as_str())
         .block(
@@ -182,15 +176,15 @@ fn draw_input_popup(f: &mut Frame, app: &App, area: Rect) {
                 .borders(Borders::ALL)
                 .border_style(title_style),
         )
-        .style(Style::default().fg(Color::White));
+        .style(Style::default().fg(cfg.colors.text));
     f.render_widget(title_field, rows[0]);
 
     // ── Description field (multiline) ─────────────────────────────────────────
     let desc_focused = app.focused_field == PopupField::Description;
     let desc_style = if desc_focused {
-        Style::default().fg(ACCENT)
+        Style::default().fg(cfg.colors.accent)
     } else {
-        Style::default().fg(SUBTLE)
+        Style::default().fg(cfg.colors.subtle)
     };
     let desc_field = Paragraph::new(app.desc_buffer.as_str())
         .block(
@@ -199,16 +193,16 @@ fn draw_input_popup(f: &mut Frame, app: &App, area: Rect) {
                 .borders(Borders::ALL)
                 .border_style(desc_style),
         )
-        .style(Style::default().fg(Color::White))
+        .style(Style::default().fg(cfg.colors.text))
         .wrap(Wrap { trim: false });
     f.render_widget(desc_field, rows[1]);
 
     // ── Tags field ────────────────────────────────────────────────────────────
     let tags_focused = app.focused_field == PopupField::Tags;
     let tags_style = if tags_focused {
-        Style::default().fg(ACCENT)
+        Style::default().fg(cfg.colors.accent)
     } else {
-        Style::default().fg(SUBTLE)
+        Style::default().fg(cfg.colors.subtle)
     };
     let tags_field = Paragraph::new(app.tags_buffer.as_str())
         .block(
@@ -217,7 +211,7 @@ fn draw_input_popup(f: &mut Frame, app: &App, area: Rect) {
                 .borders(Borders::ALL)
                 .border_style(tags_style),
         )
-        .style(Style::default().fg(TAG_FG));
+        .style(Style::default().fg(cfg.colors.tag));
     f.render_widget(tags_field, rows[2]);
 
     // ── Cursor placement ──────────────────────────────────────────────────────
@@ -243,7 +237,7 @@ fn draw_input_popup(f: &mut Frame, app: &App, area: Rect) {
 }
 
 // ── Card detail view ──────────────────────────────────────────────────────────
-fn draw_card_detail(f: &mut Frame, app: &App, area: Rect, col: usize, card: usize) {
+fn draw_card_detail(f: &mut Frame, app: &App, area: Rect, col: usize, card: usize, cfg: &Config) {
     if let Some(c) = app.columns.get(col).and_then(|c| c.cards.get(card)) {
         let popup_area = centered_rect(70, 50, area);
         f.render_widget(Clear, popup_area);
@@ -251,8 +245,8 @@ fn draw_card_detail(f: &mut Frame, app: &App, area: Rect, col: usize, card: usiz
         let block = Block::default()
             .title(format!(" {} → {} ", col_name, c.title))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(ACCENT))
-            .style(Style::default().bg(Color::Black));
+            .border_style(Style::default().fg(cfg.colors.accent))
+            .style(Style::default().bg(cfg.colors.background));
         let inner = block.inner(popup_area);
         f.render_widget(block, popup_area);
 
@@ -275,13 +269,13 @@ fn draw_card_detail(f: &mut Frame, app: &App, area: Rect, col: usize, card: usiz
         };
         let para = Paragraph::new(desc)
             .wrap(Wrap { trim: false })
-            .style(Style::default().fg(Color::White));
+            .style(Style::default().fg(cfg.colors.text));
         f.render_widget(para, sections[0]);
 
         if has_tags {
             let tag_line = Paragraph::new(Line::from(vec![
-                Span::styled("Tags: ", Style::default().fg(SUBTLE)),
-                Span::styled(c.tags.join(", "), Style::default().fg(TAG_FG)),
+                Span::styled("Tags: ", Style::default().fg(cfg.colors.subtle)),
+                Span::styled(c.tags.join(", "), Style::default().fg(cfg.colors.tag)),
             ]));
             f.render_widget(tag_line, sections[1]);
         }
@@ -289,15 +283,15 @@ fn draw_card_detail(f: &mut Frame, app: &App, area: Rect, col: usize, card: usiz
 }
 
 // ── Help overlay ──────────────────────────────────────────────────────────────
-fn draw_help(f: &mut Frame, area: Rect) {
+fn draw_help(f: &mut Frame, area: Rect, cfg: &Config) {
     let popup_area = centered_rect(50, 70, area);
     f.render_widget(Clear, popup_area);
     let help_text = Text::from(vec![
-        Line::from(Span::styled(" Navigation", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(" Navigation", Style::default().fg(cfg.colors.accent).add_modifier(Modifier::BOLD))),
         Line::from("  ←/→     Select column"),
         Line::from("  ↑/↓     Select card"),
         Line::from(""),
-        Line::from(Span::styled(" Card Actions", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(" Card Actions", Style::default().fg(cfg.colors.accent).add_modifier(Modifier::BOLD))),
         Line::from("  a       Add new card"),
         Line::from("  e       Edit selected card"),
         Line::from("  v       View card details"),
@@ -305,19 +299,19 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("  h / l   Move card left / right"),
         Line::from("  J / K   Reorder card down / up"),
         Line::from(""),
-        Line::from(Span::styled(" Popup Editing", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(" Popup Editing", Style::default().fg(cfg.colors.accent).add_modifier(Modifier::BOLD))),
         Line::from("  Tab     Cycle fields (Title → Desc → Tags)"),
         Line::from("  ←/→     Move cursor within field"),
         Line::from("  Enter   Newline in desc / confirm card"),
         Line::from("  Esc     Cancel"),
         Line::from(""),
-        Line::from(Span::styled(" Column Management", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(" Column Management", Style::default().fg(cfg.colors.accent).add_modifier(Modifier::BOLD))),
         Line::from("  n       Add new column"),
         Line::from("  r       Rename selected column"),
         Line::from("  x       Delete selected column"),
         Line::from("  H / L   Reorder column left / right"),
         Line::from(""),
-        Line::from(Span::styled(" General", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(" General", Style::default().fg(cfg.colors.accent).add_modifier(Modifier::BOLD))),
         Line::from("  ?       Toggle this help"),
         Line::from("  q       Quit (auto-saves)"),
     ]);
@@ -326,22 +320,22 @@ fn draw_help(f: &mut Frame, area: Rect) {
             Block::default()
                 .title(" Help ")
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(ACCENT))
-                .style(Style::default().bg(Color::Black)),
+                .border_style(Style::default().fg(cfg.colors.accent))
+                .style(Style::default().bg(cfg.colors.background)),
         )
         .wrap(Wrap { trim: false });
     f.render_widget(para, popup_area);
 }
 
 // ── Column name popup ────────────────────────────────────────────────────────
-fn draw_column_name_popup(f: &mut Frame, app: &App, area: Rect, is_rename: bool) {
+fn draw_column_name_popup(f: &mut Frame, app: &App, area: Rect, is_rename: bool, cfg: &Config) {
     let popup_area = centered_rect(50, 20, area);
     let title = if is_rename { " Rename Column " } else { " New Column " };
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(ACCENT))
-        .style(Style::default().bg(Color::Black));
+        .border_style(Style::default().fg(cfg.colors.accent))
+        .style(Style::default().bg(cfg.colors.background));
     let inner = block.inner(popup_area);
     f.render_widget(Clear, popup_area);
     f.render_widget(block, popup_area);
@@ -351,9 +345,9 @@ fn draw_column_name_popup(f: &mut Frame, app: &App, area: Rect, is_rename: bool)
             Block::default()
                 .title(" Column Name ")
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(ACCENT)),
+                .border_style(Style::default().fg(cfg.colors.accent)),
         )
-        .style(Style::default().fg(Color::White));
+        .style(Style::default().fg(cfg.colors.text));
     f.render_widget(field, inner);
 
     let x = inner.x + 1 + cursor_display_col(&app.input_buffer, app.title_cursor) as u16;
@@ -362,14 +356,14 @@ fn draw_column_name_popup(f: &mut Frame, app: &App, area: Rect, is_rename: bool)
 }
 
 // ── Column delete confirm popup ───────────────────────────────────────────────
-fn draw_column_delete_popup(f: &mut Frame, app: &App, area: Rect, col: usize) {
+fn draw_column_delete_popup(f: &mut Frame, app: &App, area: Rect, col: usize, cfg: &Config) {
     let popup_area = centered_rect(50, 25, area);
     let col_name = app.columns.get(col).map(|c| c.name.as_str()).unwrap_or("?");
     let block = Block::default()
         .title(" Delete Column ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(WARNING))
-        .style(Style::default().bg(Color::Black));
+        .border_style(Style::default().fg(cfg.colors.warning))
+        .style(Style::default().bg(cfg.colors.background));
     let inner = block.inner(popup_area);
     f.render_widget(Clear, popup_area);
     f.render_widget(block, popup_area);
@@ -381,7 +375,7 @@ fn draw_column_delete_popup(f: &mut Frame, app: &App, area: Rect, col: usize) {
 
     let warning = Paragraph::new(Line::from(vec![
         Span::styled("Delete ", Style::default().fg(Color::White)),
-        Span::styled(format!("'{}'" , col_name), Style::default().fg(WARNING).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("'{}'" , col_name), Style::default().fg(cfg.colors.warning).add_modifier(Modifier::BOLD)),
         Span::styled(" and all its cards?", Style::default().fg(Color::White)),
     ]));
     f.render_widget(warning, rows[0]);
@@ -391,9 +385,9 @@ fn draw_column_delete_popup(f: &mut Frame, app: &App, area: Rect, col: usize) {
             Block::default()
                 .title(" Type yes to confirm ")
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(WARNING)),
+                .border_style(Style::default().fg(cfg.colors.warning)),
         )
-        .style(Style::default().fg(Color::White));
+        .style(Style::default().fg(cfg.colors.text));
     f.render_widget(confirm_field, rows[1]);
 
     let x = rows[1].x + 1 + app.input_buffer.len() as u16;
