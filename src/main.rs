@@ -2,7 +2,7 @@ mod app;
 mod ui;
 
 use std::io;
-use crate::app::{App, InputMode};
+use crate::app::{App, InputMode, PopupField};
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
@@ -52,11 +52,8 @@ fn run(
 
             match &app.input_mode.clone() {
                 InputMode::Normal => handle_normal(app, key.code),
-                InputMode::AddingCard => handle_input(app, key.code, false),
-                InputMode::EditingCard { col, card } => {
-                    handle_input(app, key.code, true);
-                    // The handler will have already committed / cancelled
-                }
+                InputMode::AddingCard => handle_input(app, key.code),
+                InputMode::EditingCard { .. } => handle_input(app, key.code),
                 InputMode::ViewingCard { .. } => {
                     if key.code == KeyCode::Esc || key.code == KeyCode::Char('q') {
                         app.input_mode = InputMode::Normal;
@@ -97,9 +94,7 @@ fn handle_normal(app: &mut App, key: KeyCode) {
         // Add card
         KeyCode::Char('a') => {
             app.input_mode = InputMode::AddingCard;
-            app.input_buffer.clear();
-            app.desc_buffer.clear();
-            app.editing_desc = false;
+            app.reset_popup();
         }
 
         // Edit card
@@ -111,6 +106,11 @@ fn handle_normal(app: &mut App, key: KeyCode) {
                 let card = &col.cards[card_idx];
                 app.input_buffer = card.title.clone();
                 app.desc_buffer = card.description.clone();
+                app.tags_buffer = card.tags.join(", ");
+                app.title_cursor = app.input_buffer.len();
+                app.desc_cursor = app.desc_buffer.len();
+                app.tags_cursor = app.tags_buffer.len();
+                app.focused_field = PopupField::Title;
                 app.editing_desc = false;
                 app.input_mode = InputMode::EditingCard {
                     col: col_idx,
@@ -142,57 +142,150 @@ fn handle_normal(app: &mut App, key: KeyCode) {
     }
 }
 
-fn handle_input(app: &mut App, key: KeyCode, is_edit: bool) {
+fn handle_input(app: &mut App, key: KeyCode) {
     match key {
+        // Tab cycles: Title → Description → Tags → Title
         KeyCode::Tab => {
-            // Switch focus between title and description fields
-            app.editing_desc = !app.editing_desc;
+            app.focused_field = match app.focused_field {
+                PopupField::Title => {
+                    app.editing_desc = true;
+                    PopupField::Description
+                }
+                PopupField::Description => {
+                    app.editing_desc = false;
+                    PopupField::Tags
+                }
+                PopupField::Tags => {
+                    app.editing_desc = false;
+                    PopupField::Title
+                }
+            };
         }
+
+        // Enter: newline in description, commit in title/tags
         KeyCode::Enter => {
-            // Commit: only require a non-empty title
+            if app.focused_field == PopupField::Description {
+                // Insert a newline at cursor position
+                let cursor = app.desc_cursor;
+                app.desc_buffer.insert(cursor, '\n');
+                app.desc_cursor = cursor + 1;
+                return;
+            }
+
+            // Commit the card
             if !app.input_buffer.trim().is_empty() {
+                let title = app.input_buffer.trim().to_string();
+                let desc = app.desc_buffer.trim_end().to_string();
+                let tags = app.parse_tags();
+
                 match app.input_mode.clone() {
                     InputMode::AddingCard => {
-                        app.add_card(
-                            app.input_buffer.trim().to_string(),
-                            app.desc_buffer.trim().to_string(),
-                        );
+                        app.add_card(title, desc, tags);
                     }
                     InputMode::EditingCard { col, card } => {
-                        app.columns[col].cards[card].title =
-                            app.input_buffer.trim().to_string();
-                        app.columns[col].cards[card].description =
-                            app.desc_buffer.trim().to_string();
+                        app.columns[col].cards[card].title = title;
+                        app.columns[col].cards[card].description = desc;
+                        app.columns[col].cards[card].tags = tags;
                         app.save();
                     }
                     _ => {}
                 }
             }
             app.input_mode = InputMode::Normal;
-            app.input_buffer.clear();
-            app.desc_buffer.clear();
-            app.editing_desc = false;
+            app.reset_popup();
         }
+
         KeyCode::Esc => {
             app.input_mode = InputMode::Normal;
-            app.input_buffer.clear();
-            app.desc_buffer.clear();
-            app.editing_desc = false;
+            app.reset_popup();
         }
+
+        // Arrow keys: move cursor left/right in the focused field
+        KeyCode::Left => {
+            match app.focused_field {
+                PopupField::Title => {
+                    let mut c = app.title_cursor;
+                    App::cursor_left(&app.input_buffer.clone(), &mut c);
+                    app.title_cursor = c;
+                }
+                PopupField::Description => {
+                    let mut c = app.desc_cursor;
+                    App::cursor_left(&app.desc_buffer.clone(), &mut c);
+                    app.desc_cursor = c;
+                }
+                PopupField::Tags => {
+                    let mut c = app.tags_cursor;
+                    App::cursor_left(&app.tags_buffer.clone(), &mut c);
+                    app.tags_cursor = c;
+                }
+            }
+        }
+        KeyCode::Right => {
+            match app.focused_field {
+                PopupField::Title => {
+                    let mut c = app.title_cursor;
+                    App::cursor_right(&app.input_buffer.clone(), &mut c);
+                    app.title_cursor = c;
+                }
+                PopupField::Description => {
+                    let mut c = app.desc_cursor;
+                    App::cursor_right(&app.desc_buffer.clone(), &mut c);
+                    app.desc_cursor = c;
+                }
+                PopupField::Tags => {
+                    let mut c = app.tags_cursor;
+                    App::cursor_right(&app.tags_buffer.clone(), &mut c);
+                    app.tags_cursor = c;
+                }
+            }
+        }
+
         KeyCode::Backspace => {
-            if app.editing_desc {
-                app.desc_buffer.pop();
-            } else {
-                app.input_buffer.pop();
+            match app.focused_field {
+                PopupField::Title => {
+                    let (mut buf, mut cur) = (app.input_buffer.clone(), app.title_cursor);
+                    App::delete_char_before(&mut buf, &mut cur);
+                    app.input_buffer = buf;
+                    app.title_cursor = cur;
+                }
+                PopupField::Description => {
+                    let (mut buf, mut cur) = (app.desc_buffer.clone(), app.desc_cursor);
+                    App::delete_char_before(&mut buf, &mut cur);
+                    app.desc_buffer = buf;
+                    app.desc_cursor = cur;
+                }
+                PopupField::Tags => {
+                    let (mut buf, mut cur) = (app.tags_buffer.clone(), app.tags_cursor);
+                    App::delete_char_before(&mut buf, &mut cur);
+                    app.tags_buffer = buf;
+                    app.tags_cursor = cur;
+                }
             }
         }
+
         KeyCode::Char(c) => {
-            if app.editing_desc {
-                app.desc_buffer.push(c);
-            } else {
-                app.input_buffer.push(c);
+            match app.focused_field {
+                PopupField::Title => {
+                    let (mut buf, mut cur) = (app.input_buffer.clone(), app.title_cursor);
+                    App::insert_char(&mut buf, &mut cur, c);
+                    app.input_buffer = buf;
+                    app.title_cursor = cur;
+                }
+                PopupField::Description => {
+                    let (mut buf, mut cur) = (app.desc_buffer.clone(), app.desc_cursor);
+                    App::insert_char(&mut buf, &mut cur, c);
+                    app.desc_buffer = buf;
+                    app.desc_cursor = cur;
+                }
+                PopupField::Tags => {
+                    let (mut buf, mut cur) = (app.tags_buffer.clone(), app.tags_cursor);
+                    App::insert_char(&mut buf, &mut cur, c);
+                    app.tags_buffer = buf;
+                    app.tags_cursor = cur;
+                }
             }
         }
+
         _ => {}
     }
 }

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub struct Card {
     pub title: String,
     pub description: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl Card {
@@ -12,6 +14,7 @@ impl Card {
         Self {
             title: title.into(),
             description: String::new(),
+            tags: Vec::new(),
         }
     }
 }
@@ -33,6 +36,14 @@ impl Column {
     }
 }
 
+/// Which field is focused in the add/edit popup
+#[derive(Clone, PartialEq)]
+pub enum PopupField {
+    Title,
+    Description,
+    Tags,
+}
+
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum InputMode {
     Normal,
@@ -52,9 +63,23 @@ pub struct App {
     pub selected_column: usize,
     pub quit: bool,
     pub input_mode: InputMode,
-    pub input_buffer: String,
-    pub desc_buffer: String,
+
+    // Buffers for the add/edit popup
+    pub input_buffer: String,   // title
+    pub desc_buffer: String,    // description (may contain \n)
+    pub tags_buffer: String,    // comma-separated tags
+
+    // Which field is focused
+    pub focused_field: PopupField,
+
+    // Cursor positions (byte offsets into each buffer)
+    pub title_cursor: usize,
+    pub desc_cursor: usize,
+    pub tags_cursor: usize,
+
+    /// Legacy flag kept so ui.rs can check focus without matching PopupField
     pub editing_desc: bool,
+
     pub show_help: bool,
     pub status_message: Option<String>,
 }
@@ -69,6 +94,11 @@ impl App {
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
             desc_buffer: String::new(),
+            tags_buffer: String::new(),
+            focused_field: PopupField::Title,
+            title_cursor: 0,
+            desc_cursor: 0,
+            tags_cursor: 0,
             editing_desc: false,
             show_help: false,
             status_message: None,
@@ -93,6 +123,15 @@ impl App {
                 },
             ],
         }
+    }
+
+    /// Parse tags_buffer into a Vec<String>, trimming whitespace and ignoring empty entries
+    pub fn parse_tags(&self) -> Vec<String> {
+        self.tags_buffer
+            .split(',')
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .collect()
     }
 
     fn snapshot(&self) -> BoardSnapshot {
@@ -131,9 +170,9 @@ impl App {
         }
     }
 
-    pub fn add_card(&mut self, title: String, description: String) {
+    pub fn add_card(&mut self, title: String, description: String, tags: Vec<String>) {
         let col = &mut self.columns[self.selected_column];
-        col.cards.push(Card { title, description });
+        col.cards.push(Card { title, description, tags });
         col.selected = col.cards.len() - 1;
         self.save();
     }
@@ -176,6 +215,56 @@ impl App {
     pub fn current_card(&self) -> Option<&Card> {
         let col = self.current_col();
         col.cards.get(col.selected)
+    }
+
+    /// Clear all popup buffers and reset focus to Title
+    pub fn reset_popup(&mut self) {
+        self.input_buffer.clear();
+        self.desc_buffer.clear();
+        self.tags_buffer.clear();
+        self.title_cursor = 0;
+        self.desc_cursor = 0;
+        self.tags_cursor = 0;
+        self.focused_field = PopupField::Title;
+        self.editing_desc = false;
+    }
+
+    // ── Cursor helpers ──────────────────────────────────────────────────────
+
+    /// Move cursor left by one char in `buf`, updating `cursor` in place
+    pub fn cursor_left(buf: &str, cursor: &mut usize) {
+        if *cursor == 0 { return; }
+        // Step back one UTF-8 char
+        *cursor -= 1;
+        while *cursor > 0 && !buf.is_char_boundary(*cursor) {
+            *cursor -= 1;
+        }
+    }
+
+    /// Move cursor right by one char in `buf`, updating `cursor` in place
+    pub fn cursor_right(buf: &str, cursor: &mut usize) {
+        if *cursor >= buf.len() { return; }
+        *cursor += 1;
+        while *cursor < buf.len() && !buf.is_char_boundary(*cursor) {
+            *cursor += 1;
+        }
+    }
+
+    /// Insert a char at `cursor` position in `buf`
+    pub fn insert_char(buf: &mut String, cursor: &mut usize, ch: char) {
+        buf.insert(*cursor, ch);
+        *cursor += ch.len_utf8();
+    }
+
+    /// Delete char before `cursor` (backspace)
+    pub fn delete_char_before(buf: &mut String, cursor: &mut usize) {
+        if *cursor == 0 { return; }
+        let mut start = *cursor - 1;
+        while start > 0 && !buf.is_char_boundary(start) {
+            start -= 1;
+        }
+        buf.drain(start..*cursor);
+        *cursor = start;
     }
 }
 
