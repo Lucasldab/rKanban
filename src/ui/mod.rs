@@ -122,7 +122,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
     } else {
         let hint = match &app.input_mode {
             InputMode::Normal => {
-                "  ←/→ col  ↑/↓ card  a add  e edit  v view  h/l move col  J/K reorder  d del  n/r/x col  ? help  q quit"
+                "  ←/→ col  ↑/↓ card  a add  e edit  v view  h/l move col  H/L reorder col  J/K reorder card  d del  n/r/x col  ? help  q quit"
             }
             InputMode::AddingCard | InputMode::EditingCard { .. } => {
                 "  Tab: next field  ←/→: cursor  Enter: newline(desc)/confirm  Esc: cancel"
@@ -315,6 +315,7 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("  n       Add new column"),
         Line::from("  r       Rename selected column"),
         Line::from("  x       Delete selected column"),
+        Line::from("  H / L   Reorder column left / right"),
         Line::from(""),
         Line::from(Span::styled(" General", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
         Line::from("  ?       Toggle this help"),

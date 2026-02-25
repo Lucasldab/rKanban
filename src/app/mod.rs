@@ -205,6 +205,22 @@ impl App {
         self.save();
     }
 
+    pub fn move_column_left(&mut self) {
+        let i = self.selected_column;
+        if i == 0 { return; }
+        self.columns.swap(i, i - 1);
+        self.selected_column -= 1;
+        self.save();
+    }
+
+    pub fn move_column_right(&mut self) {
+        let i = self.selected_column;
+        if i + 1 >= self.columns.len() { return; }
+        self.columns.swap(i, i + 1);
+        self.selected_column += 1;
+        self.save();
+    }
+
     pub fn move_card_left(&mut self) {
         if self.selected_column == 0 { return; }
         self.move_card_to(self.selected_column - 1);
