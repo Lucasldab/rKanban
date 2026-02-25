@@ -108,24 +108,9 @@ impl App {
             save_path: Self::DEFAULT_FILE.to_string(),
             status_message: None,
             columns: vec![
-                Column {
-                    name: "Todo".into(),
-                    selected: 0,
-                    cards: vec![
-                        Card::new("Write TUI"),
-                        Card::new("Drink coffee"),
-                    ],
-                },
-                Column {
-                    name: "Doing".into(),
-                    selected: 0,
-                    cards: vec![Card::new("Learning Ratatui")],
-                },
-                Column {
-                    name: "Done".into(),
-                    selected: 0,
-                    cards: vec![Card::new("Create project")],
-                },
+                Column { name: "Todo".into(),  selected: 0, cards: vec![] },
+                Column { name: "Doing".into(), selected: 0, cards: vec![] },
+                Column { name: "Done".into(),  selected: 0, cards: vec![] },
             ],
         }
     }
