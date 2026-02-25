@@ -186,6 +186,22 @@ impl App {
         }
     }
 
+    pub fn move_card_up(&mut self) {
+        let col = &mut self.columns[self.selected_column];
+        if col.selected == 0 || col.cards.len() < 2 { return; }
+        col.cards.swap(col.selected, col.selected - 1);
+        col.selected -= 1;
+        self.save();
+    }
+
+    pub fn move_card_down(&mut self) {
+        let col = &mut self.columns[self.selected_column];
+        if col.cards.len() < 2 || col.selected + 1 >= col.cards.len() { return; }
+        col.cards.swap(col.selected, col.selected + 1);
+        col.selected += 1;
+        self.save();
+    }
+
     pub fn move_card_left(&mut self) {
         if self.selected_column == 0 { return; }
         self.move_card_to(self.selected_column - 1);

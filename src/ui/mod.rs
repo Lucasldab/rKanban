@@ -73,7 +73,7 @@ fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
                 // Show a bullet and optionally a description hint
                 let desc_hint = if !c.description.is_empty() { " ✎" } else { "" };
                 let title_line = Line::from(Span::styled(
-                    format!(" • {}{}", c.title, desc_hint),
+                    format!(" {}{}", c.title, desc_hint),
                     base_style,
                 ));
 
@@ -87,7 +87,7 @@ fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
                         Style::default().fg(TAG_FG)
                     };
                     let tag_line = Line::from(Span::styled(
-                        format!("   [{}]", c.tags.join(", ")),
+                        format!("  [{}]", c.tags.join(", ")),
                         tag_style,
                     ));
                     ListItem::new(Text::from(vec![title_line, tag_line]))
@@ -111,7 +111,7 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
     } else {
         let hint = match &app.input_mode {
             InputMode::Normal => {
-                "  ←/→ col  ↑/↓ card  a add  e edit  v view  h/l move  d delete  ? help  q quit"
+                "  ←/→ col  ↑/↓ card  a add  e edit  v view  h/l move col  J/K reorder  d delete  ? help  q quit"
             }
             InputMode::AddingCard | InputMode::EditingCard { .. } => {
                 "  Tab: next field  ←/→: cursor  Enter: newline(desc)/confirm  Esc: cancel"
@@ -286,6 +286,7 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("  v       View card details"),
         Line::from("  d       Delete selected card"),
         Line::from("  h / l   Move card left / right"),
+        Line::from("  J / K   Reorder card down / up"),
         Line::from(""),
         Line::from(Span::styled(" Popup Editing", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
         Line::from("  Tab     Cycle fields (Title → Desc → Tags)"),

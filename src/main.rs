@@ -135,6 +135,10 @@ fn handle_normal(app: &mut App, key: KeyCode) {
         KeyCode::Char('h') => app.move_card_left(),
         KeyCode::Char('l') => app.move_card_right(),
 
+        // Reorder card within column
+        KeyCode::Char('K') => app.move_card_up(),
+        KeyCode::Char('J') => app.move_card_down(),
+
         // Delete card
         KeyCode::Char('d') => app.delete_card(),
 
