@@ -9,15 +9,6 @@ pub struct Card {
     pub tags: Vec<String>,
 }
 
-impl Card {
-    pub fn new(title: impl Into<String>) -> Self {
-        Self {
-            title: title.into(),
-            description: String::new(),
-            tags: Vec::new(),
-        }
-    }
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Column {
@@ -255,15 +246,6 @@ impl App {
         self.columns.remove(col);
         self.selected_column = col.saturating_sub(1).min(self.columns.len() - 1);
         self.save();
-    }
-
-    pub fn current_col(&self) -> &Column {
-        &self.columns[self.selected_column]
-    }
-
-    pub fn current_card(&self) -> Option<&Card> {
-        let col = self.current_col();
-        col.cards.get(col.selected)
     }
 
     /// Clear all popup buffers and reset focus to Title
