@@ -77,7 +77,7 @@ fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
                     base_style,
                 ));
 
-                // If card has tags, show them on a second line
+                // Tags inline to the right of the title
                 if c.tags.is_empty() {
                     ListItem::new(title_line)
                 } else {
@@ -86,11 +86,13 @@ fn draw_columns(f: &mut Frame, app: &App, area: Rect) {
                     } else {
                         Style::default().fg(TAG_FG)
                     };
-                    let tag_line = Line::from(Span::styled(
-                        format!("  [{}]", c.tags.join(", ")),
+                    let tag_span = Span::styled(
+                        format!(" [{}]", c.tags.join(", ")),
                         tag_style,
-                    ));
-                    ListItem::new(Text::from(vec![title_line, tag_line]))
+                    );
+                    let mut spans = title_line.spans;
+                    spans.push(tag_span);
+                    ListItem::new(Line::from(spans))
                 }
             })
             .collect();
