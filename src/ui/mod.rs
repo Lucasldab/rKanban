@@ -31,6 +31,15 @@ pub fn draw(f: &mut Frame, app: &App) {
         InputMode::ViewingCard { col, card } => {
             draw_card_detail(f, app, area, *col, *card);
         }
+        InputMode::AddingColumn => {
+            draw_column_name_popup(f, app, area, false);
+        }
+        InputMode::RenamingColumn { .. } => {
+            draw_column_name_popup(f, app, area, true);
+        }
+        InputMode::DeletingColumn { col } => {
+            draw_column_delete_popup(f, app, area, *col);
+        }
         InputMode::Normal => {}
     }
     if app.show_help {
@@ -113,10 +122,16 @@ fn draw_statusbar(f: &mut Frame, app: &App, area: Rect) {
     } else {
         let hint = match &app.input_mode {
             InputMode::Normal => {
-                "  ←/→ col  ↑/↓ card  a add  e edit  v view  h/l move col  J/K reorder  d delete  ? help  q quit"
+                "  ←/→ col  ↑/↓ card  a add  e edit  v view  h/l move col  J/K reorder  d del  n/r/x col  ? help  q quit"
             }
             InputMode::AddingCard | InputMode::EditingCard { .. } => {
                 "  Tab: next field  ←/→: cursor  Enter: newline(desc)/confirm  Esc: cancel"
+            }
+            InputMode::AddingColumn | InputMode::RenamingColumn { .. } => {
+                "  ←/→: cursor  Enter: confirm  Esc: cancel"
+            }
+            InputMode::DeletingColumn { .. } => {
+                "  Type yes and press Enter to confirm deletion  Esc: cancel"
             }
             InputMode::ViewingCard { .. } => "  Esc: back",
         };
@@ -296,6 +311,11 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("  Enter   Newline in desc / confirm card"),
         Line::from("  Esc     Cancel"),
         Line::from(""),
+        Line::from(Span::styled(" Column Management", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
+        Line::from("  n       Add new column"),
+        Line::from("  r       Rename selected column"),
+        Line::from("  x       Delete selected column"),
+        Line::from(""),
         Line::from(Span::styled(" General", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
         Line::from("  ?       Toggle this help"),
         Line::from("  q       Quit (auto-saves)"),
@@ -310,6 +330,74 @@ fn draw_help(f: &mut Frame, area: Rect) {
         )
         .wrap(Wrap { trim: false });
     f.render_widget(para, popup_area);
+}
+
+// ── Column name popup ────────────────────────────────────────────────────────
+fn draw_column_name_popup(f: &mut Frame, app: &App, area: Rect, is_rename: bool) {
+    let popup_area = centered_rect(50, 20, area);
+    let title = if is_rename { " Rename Column " } else { " New Column " };
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(ACCENT))
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(popup_area);
+    f.render_widget(Clear, popup_area);
+    f.render_widget(block, popup_area);
+
+    let field = Paragraph::new(app.input_buffer.as_str())
+        .block(
+            Block::default()
+                .title(" Column Name ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(ACCENT)),
+        )
+        .style(Style::default().fg(Color::White));
+    f.render_widget(field, inner);
+
+    let x = inner.x + 1 + cursor_display_col(&app.input_buffer, app.title_cursor) as u16;
+    let y = inner.y + 1;
+    f.set_cursor_position((x.min(inner.right() - 2), y));
+}
+
+// ── Column delete confirm popup ───────────────────────────────────────────────
+fn draw_column_delete_popup(f: &mut Frame, app: &App, area: Rect, col: usize) {
+    let popup_area = centered_rect(50, 25, area);
+    let col_name = app.columns.get(col).map(|c| c.name.as_str()).unwrap_or("?");
+    let block = Block::default()
+        .title(" Delete Column ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(WARNING))
+        .style(Style::default().bg(Color::Black));
+    let inner = block.inner(popup_area);
+    f.render_widget(Clear, popup_area);
+    f.render_widget(block, popup_area);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(2), Constraint::Length(3)])
+        .split(inner);
+
+    let warning = Paragraph::new(Line::from(vec![
+        Span::styled("Delete ", Style::default().fg(Color::White)),
+        Span::styled(format!("'{}'" , col_name), Style::default().fg(WARNING).add_modifier(Modifier::BOLD)),
+        Span::styled(" and all its cards?", Style::default().fg(Color::White)),
+    ]));
+    f.render_widget(warning, rows[0]);
+
+    let confirm_field = Paragraph::new(app.input_buffer.as_str())
+        .block(
+            Block::default()
+                .title(" Type yes to confirm ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(WARNING)),
+        )
+        .style(Style::default().fg(Color::White));
+    f.render_widget(confirm_field, rows[1]);
+
+    let x = rows[1].x + 1 + app.input_buffer.len() as u16;
+    let y = rows[1].y + 1;
+    f.set_cursor_position((x.min(rows[1].right() - 2), y));
 }
 
 // ── Cursor helpers ────────────────────────────────────────────────────────────

@@ -54,6 +54,9 @@ fn run(
                 InputMode::Normal => handle_normal(app, key.code),
                 InputMode::AddingCard => handle_input(app, key.code),
                 InputMode::EditingCard { .. } => handle_input(app, key.code),
+                InputMode::AddingColumn => handle_column_input(app, key.code),
+                InputMode::RenamingColumn { .. } => handle_column_input(app, key.code),
+                InputMode::DeletingColumn { .. } => handle_delete_confirm(app, key.code),
                 InputMode::ViewingCard { .. } => {
                     if key.code == KeyCode::Esc || key.code == KeyCode::Char('q') {
                         app.input_mode = InputMode::Normal;
@@ -141,6 +144,29 @@ fn handle_normal(app: &mut App, key: KeyCode) {
 
         // Delete card
         KeyCode::Char('d') => app.delete_card(),
+
+        // Column management
+        KeyCode::Char('n') => {
+            app.input_mode = InputMode::AddingColumn;
+            app.input_buffer.clear();
+            app.title_cursor = 0;
+        }
+        KeyCode::Char('r') => {
+            let col_idx = app.selected_column;
+            app.input_buffer = app.columns[col_idx].name.clone();
+            app.title_cursor = app.input_buffer.len();
+            app.input_mode = InputMode::RenamingColumn { col: col_idx };
+        }
+        KeyCode::Char('x') => {
+            if app.columns.len() > 1 {
+                let col_idx = app.selected_column;
+                app.input_buffer.clear();
+                app.title_cursor = 0;
+                app.input_mode = InputMode::DeletingColumn { col: col_idx };
+            } else {
+                app.status_message = Some("⚠ Cannot delete the last column".into());
+            }
+        }
 
         _ => {}
     }
@@ -290,6 +316,77 @@ fn handle_input(app: &mut App, key: KeyCode) {
             }
         }
 
+        _ => {}
+    }
+}
+
+fn handle_column_input(app: &mut App, key: KeyCode) {
+    match key {
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.input_buffer.clear();
+            app.title_cursor = 0;
+        }
+        KeyCode::Enter => {
+            let name = app.input_buffer.trim().to_string();
+            if !name.is_empty() {
+                match app.input_mode.clone() {
+                    InputMode::AddingColumn => app.add_column(name),
+                    InputMode::RenamingColumn { col } => app.rename_column(col, name),
+                    _ => {}
+                }
+            }
+            app.input_mode = InputMode::Normal;
+            app.input_buffer.clear();
+            app.title_cursor = 0;
+        }
+        KeyCode::Left => {
+            let mut c = app.title_cursor;
+            App::cursor_left(&app.input_buffer.clone(), &mut c);
+            app.title_cursor = c;
+        }
+        KeyCode::Right => {
+            let mut c = app.title_cursor;
+            App::cursor_right(&app.input_buffer.clone(), &mut c);
+            app.title_cursor = c;
+        }
+        KeyCode::Backspace => {
+            let (mut buf, mut cur) = (app.input_buffer.clone(), app.title_cursor);
+            App::delete_char_before(&mut buf, &mut cur);
+            app.input_buffer = buf;
+            app.title_cursor = cur;
+        }
+        KeyCode::Char(c) => {
+            let (mut buf, mut cur) = (app.input_buffer.clone(), app.title_cursor);
+            App::insert_char(&mut buf, &mut cur, c);
+            app.input_buffer = buf;
+            app.title_cursor = cur;
+        }
+        _ => {}
+    }
+}
+
+fn handle_delete_confirm(app: &mut App, key: KeyCode) {
+    match key {
+        KeyCode::Esc => {
+            app.input_mode = InputMode::Normal;
+            app.input_buffer.clear();
+        }
+        KeyCode::Enter => {
+            if app.input_buffer.trim().eq_ignore_ascii_case("yes") {
+                if let InputMode::DeletingColumn { col } = app.input_mode.clone() {
+                    app.delete_column(col);
+                }
+            }
+            app.input_mode = InputMode::Normal;
+            app.input_buffer.clear();
+        }
+        KeyCode::Backspace => {
+            app.input_buffer.pop();
+        }
+        KeyCode::Char(c) => {
+            app.input_buffer.push(c);
+        }
         _ => {}
     }
 }

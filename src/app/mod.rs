@@ -50,6 +50,9 @@ pub enum InputMode {
     AddingCard,
     EditingCard { col: usize, card: usize },
     ViewingCard { col: usize, card: usize },
+    AddingColumn,
+    RenamingColumn { col: usize },
+    DeletingColumn { col: usize },
 }
 
 impl Default for InputMode {
@@ -221,6 +224,30 @@ impl App {
         self.columns[dst].cards.push(card);
         self.columns[dst].selected = self.columns[dst].cards.len() - 1;
         self.selected_column = dst;
+        self.save();
+    }
+
+    pub fn add_column(&mut self, name: String) {
+        self.columns.push(Column {
+            name,
+            cards: Vec::new(),
+            selected: 0,
+        });
+        self.selected_column = self.columns.len() - 1;
+        self.save();
+    }
+
+    pub fn rename_column(&mut self, col: usize, name: String) {
+        if let Some(c) = self.columns.get_mut(col) {
+            c.name = name;
+            self.save();
+        }
+    }
+
+    pub fn delete_column(&mut self, col: usize) {
+        if self.columns.len() <= 1 { return; } // always keep at least one
+        self.columns.remove(col);
+        self.selected_column = col.saturating_sub(1).min(self.columns.len() - 1);
         self.save();
     }
 
