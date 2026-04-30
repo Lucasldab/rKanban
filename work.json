@@ -1,0 +1,43 @@
+{
+  "columns": [
+    {
+      "name": "Todo",
+      "cards": [
+        {
+          "title": "Write TUI",
+          "description": "",
+          "tags": []
+        },
+        {
+          "title": "Drink coffee",
+          "description": "",
+          "tags": []
+        }
+      ],
+      "selected": 0
+    },
+    {
+      "name": "Doing",
+      "cards": [
+        {
+          "title": "Learning Ratatui",
+          "description": "",
+          "tags": []
+        }
+      ],
+      "selected": 0
+    },
+    {
+      "name": "Done",
+      "cards": [
+        {
+          "title": "Create project",
+          "description": "",
+          "tags": []
+        }
+      ],
+      "selected": 0
+    }
+  ],
+  "selected_column": 0
+}
